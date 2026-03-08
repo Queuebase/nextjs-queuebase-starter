@@ -1,64 +1,186 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
+
+type JobResult = {
+  jobName: string;
+  jobId: string;
+};
 
 export default function Home() {
+  const [results, setResults] = useState<JobResult[]>([]);
+  const [loading, setLoading] = useState<string | null>(null);
+
+  async function enqueueJob(jobName: string, payload: Record<string, unknown>) {
+    setLoading(jobName);
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_QUEUEBASE_URL ?? "http://localhost:3847"}/api/enqueue`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jobName,
+            payload,
+            callbackUrl: `${window.location.origin}/api/queuebase`,
+          }),
+        }
+      );
+      const data = await response.json();
+      setResults((prev) => [
+        { jobName, jobId: data.jobId ?? "unknown" },
+        ...prev,
+      ]);
+    } catch (error) {
+      console.info("Failed to enqueue job:", error);
+      setResults((prev) => [
+        { jobName, jobId: "error — is queuebase dev running?" },
+        ...prev,
+      ]);
+    } finally {
+      setLoading(null);
+    }
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 p-8 font-sans dark:bg-zinc-950">
+      <main className="w-full max-w-xl space-y-8">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+            Queuebase Starter
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-zinc-600 dark:text-zinc-400">
+            Enqueue background jobs and watch them run. Make sure{" "}
+            <code className="rounded bg-zinc-200 px-1.5 py-0.5 text-sm dark:bg-zinc-800">
+              queuebase dev
+            </code>{" "}
+            is running in a separate terminal.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="space-y-6">
+          {/* Send Email Job */}
+          <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+            <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              Send Email
+            </h2>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const formData = new FormData(form);
+                enqueueJob("sendEmail", {
+                  to: formData.get("to") as string,
+                  subject: formData.get("subject") as string,
+                  body: formData.get("body") as string,
+                });
+              }}
+              className="space-y-3"
+            >
+              <input
+                name="to"
+                type="email"
+                defaultValue="user@example.com"
+                placeholder="Recipient email"
+                required
+                className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-zinc-700 dark:text-zinc-100"
+              />
+              <input
+                name="subject"
+                type="text"
+                defaultValue="Welcome to Queuebase"
+                placeholder="Subject"
+                required
+                className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-zinc-700 dark:text-zinc-100"
+              />
+              <textarea
+                name="body"
+                defaultValue="Thanks for trying out Queuebase! Background jobs are now easy."
+                placeholder="Email body"
+                rows={3}
+                required
+                className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-zinc-700 dark:text-zinc-100"
+              />
+              <button
+                type="submit"
+                disabled={loading === "sendEmail"}
+                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {loading === "sendEmail" ? "Enqueueing..." : "Enqueue Email Job"}
+              </button>
+            </form>
+          </section>
+
+          {/* Process Data Job */}
+          <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+            <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              Process Data
+            </h2>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const formData = new FormData(form);
+                enqueueJob("processData", {
+                  userId: formData.get("userId") as string,
+                  action: formData.get("action") as string,
+                });
+              }}
+              className="space-y-3"
+            >
+              <input
+                name="userId"
+                type="text"
+                defaultValue="user_123"
+                placeholder="User ID"
+                required
+                className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 dark:border-zinc-700 dark:text-zinc-100"
+              />
+              <select
+                name="action"
+                defaultValue="sync"
+                className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+              >
+                <option value="sync">Sync</option>
+                <option value="export">Export</option>
+                <option value="cleanup">Cleanup</option>
+              </select>
+              <button
+                type="submit"
+                disabled={loading === "processData"}
+                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {loading === "processData"
+                  ? "Enqueueing..."
+                  : "Enqueue Data Job"}
+              </button>
+            </form>
+          </section>
         </div>
+
+        {/* Results */}
+        {results.length > 0 && (
+          <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+            <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              Enqueued Jobs
+            </h2>
+            <ul className="space-y-2">
+              {results.map((result, i) => (
+                <li
+                  key={`${result.jobId}-${i}`}
+                  className="flex items-center justify-between rounded-md bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-800"
+                >
+                  <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                    {result.jobName}
+                  </span>
+                  <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
+                    {result.jobId}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </main>
     </div>
   );
