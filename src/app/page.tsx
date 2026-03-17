@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { enqueueSendEmail, enqueueProcessData } from "./actions";
 
 type JobResult = {
   jobName: string;
@@ -11,30 +12,31 @@ export default function Home() {
   const [results, setResults] = useState<JobResult[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
 
-  async function enqueueJob(jobName: string, payload: Record<string, unknown>) {
-    setLoading(jobName);
+  async function handleSendEmail(formData: FormData) {
+    setLoading("sendEmail");
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_QUEUEBASE_URL ?? "http://localhost:3847"}/api/enqueue`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jobName,
-            payload,
-            callbackUrl: `${window.location.origin}/api/queuebase`,
-          }),
-        }
-      );
-      const data = await response.json();
-      setResults((prev) => [
-        { jobName, jobId: data.jobId ?? "unknown" },
-        ...prev,
-      ]);
+      const result = await enqueueSendEmail(formData);
+      setResults((prev) => [result, ...prev]);
     } catch (error) {
       console.info("Failed to enqueue job:", error);
       setResults((prev) => [
-        { jobName, jobId: "error — is queuebase dev running?" },
+        { jobName: "sendEmail", jobId: "error — is queuebase dev running?" },
+        ...prev,
+      ]);
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function handleProcessData(formData: FormData) {
+    setLoading("processData");
+    try {
+      const result = await enqueueProcessData(formData);
+      setResults((prev) => [result, ...prev]);
+    } catch (error) {
+      console.info("Failed to enqueue job:", error);
+      setResults((prev) => [
+        { jobName: "processData", jobId: "error — is queuebase dev running?" },
         ...prev,
       ]);
     } finally {
@@ -67,13 +69,7 @@ export default function Home() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                const form = e.currentTarget;
-                const formData = new FormData(form);
-                enqueueJob("sendEmail", {
-                  to: formData.get("to") as string,
-                  subject: formData.get("subject") as string,
-                  body: formData.get("body") as string,
-                });
+                handleSendEmail(new FormData(e.currentTarget));
               }}
               className="space-y-3"
             >
@@ -119,12 +115,7 @@ export default function Home() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                const form = e.currentTarget;
-                const formData = new FormData(form);
-                enqueueJob("processData", {
-                  userId: formData.get("userId") as string,
-                  action: formData.get("action") as string,
-                });
+                handleProcessData(new FormData(e.currentTarget));
               }}
               className="space-y-3"
             >

@@ -1,7 +1,7 @@
 import { job, createJobRouter } from "@queuebase/nextjs";
 import { z } from "zod";
 
-export const jobRouter = createJobRouter({
+const jobRouter = createJobRouter({
   sendEmail: job({
     input: z.object({
       to: z.string().email(),
@@ -25,6 +25,15 @@ export const jobRouter = createJobRouter({
       return { processed: true };
     },
   }),
+  heartbeat: job({
+    input: z.object({}),
+    schedule: "every 1 minute",
+    handler: async () => {
+      console.info(`Heartbeat at ${new Date().toISOString()}`);
+      return { alive: true };
+    },
+  }),
 });
 
+export default jobRouter;
 export type AppJobRouter = typeof jobRouter;
